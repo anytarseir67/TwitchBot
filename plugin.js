@@ -23,8 +23,6 @@ const post = async (data) => {
 module.exports = async (win) => {
 	ipcMain.on('apiLoaded', () => win.webContents.send('setupTimeChangedListener'));
 	ipcMain.on('timeChanged', async (_, t) => {
-		if (!data.title) return;
-		data.progress = secToMilisec(t);
 		post(data);
 	});
 
@@ -32,7 +30,6 @@ module.exports = async (win) => {
 		if (!songInfo.title && !songInfo.artist) {
 			return;
 		}
-
 		data.playlist = songInfo.playlistId
 		post(data);
 	})
