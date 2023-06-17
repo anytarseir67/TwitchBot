@@ -1,4 +1,7 @@
 from aiohttp import web
+import websockets
+from websockets import server
+import asyncio
 
 app = web.Application()
 
@@ -11,6 +14,7 @@ class Data:
         self.time: int = None
         self.dur: int = None
         self.playlist: str = None
+        self.socket: server.WebSocketServerProtocol = None
 
     async def top(self, dat: dict) -> None:
         self.time, self.dur = dat['data']['progress'], dat['data']['duration']
@@ -48,5 +52,17 @@ async def time(request: web.Request):
     percent = await data.get_time()
     return web.Response(body=str(percent))
 
+@routes.get('/skip')
+async def skip(request: web.Request):
+    await data.socket.send('skip')
+    return web.Response(body='skipped')
+
+async def socket(websocket: server.WebSocketServerProtocol, path) -> None:
+    data.socket = websocket
+    async for msg in websocket:
+        ...
+
 app.add_routes(routes)
-web.run_app(app, port=1608, host="127.0.0.1")
+start_server = server.serve(socket, 'localhost', 1610)
+asyncio.get_event_loop().run_until_complete(start_server)
+web.run_app(app, port=1608, host="127.0.0.1", loop=asyncio.get_event_loop())
