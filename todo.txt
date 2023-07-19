@@ -1,7 +1,7 @@
 TODO:
 
     * plugin to skip songs externally
-    - plugin to control playlists
+    * plugin to control playlists
         # https://www.electronjs.org/docs/latest/api/web-contents/#contentsexecutejavascriptcode-usergesture
         # https://music.youtube.com/playlist?list={id}
     - clean up the web server ( very messy rn D: )

@@ -154,3 +154,4 @@ cython_debug/
 token.txt
 node_modules/
 config.py
+build.bat

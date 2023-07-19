@@ -6,6 +6,7 @@ from datetime import datetime
 import pytz
 import platform
 import asyncpg
+from typing import Any, Callable
 
 import config
 
@@ -14,6 +15,11 @@ def get_token() -> str:
         return f.read()
 
 server_url: str = "http://127.0.0.1:1608"
+
+class ModCommand(commands.Command):
+    def __init__(self, name: str, func: Callable[..., Any], **attrs) -> None:
+        super().__init__(name, func, **attrs)
+        self.__skip__ = True
 
 class Bot(commands.Bot):
 
@@ -24,6 +30,7 @@ class Bot(commands.Bot):
         self.conn: asyncpg.connection.Connection = None
         self.live: bool = False
         self.update_live.start()
+        self.send_help.start()
 
     @routines.routine(minutes=1)
     async def update_live(self) -> None:
@@ -43,6 +50,16 @@ class Bot(commands.Bot):
     async def before_update_live(self) -> None:
         await self.wait_for_ready()
 
+    @routines.routine(minutes=10, wait_first=True)
+    async def send_help(self) -> None:
+        if self.live:
+            msg = ' - '.join([f"!{x}" for x in self.commands.keys() if (x != "help") or (not hasattr(x, '__skip__'))])
+            await self.user.channel.send(msg)
+
+    @send_help.before_routine
+    async def before_send_help(self) -> None:
+        await self.wait_for_ready()
+
     async def handle_commands(self, message: twitchio.Message):
         if self.live or message.author.name == config.channel:
             return await super().handle_commands(message)
@@ -58,7 +75,7 @@ class Bot(commands.Bot):
 
     @commands.command(aliases=["commands"])
     async def help(self, ctx: commands.Context) -> None:
-        msg = ' - '.join([f"!{x}" for x in self.commands.keys() if x != "help"])
+        msg = ' - '.join([f"!{x.name}" for x in self.commands.values() if x.name != "help" and not hasattr(x, '__skip__')])
         await ctx.reply(msg)
 
     @commands.command()
@@ -116,12 +133,78 @@ class Bot(commands.Bot):
         await ctx.reply("Skipped.")
 
     @commands.command()
+    async def previous(self, ctx: commands.Context) -> None:
+        async with self.session.get(f"{server_url}/previous") as _:
+            ... # do nothing since we don't actually need the response
+        await ctx.reply("playing previous song.")
+
+    @commands.command()
     async def cough(self, ctx: commands.Context) -> None:
         dat = await self.conn.fetch("SELECT value FROM data WHERE name ='cough'")
         coughs = int(dat[0]['value']) + 1
         await ctx.reply(f"{config.channel} has coughed {coughs} times.")
         await self.conn.execute(f"UPDATE data SET value=$1 WHERE name=$2", str(coughs), "cough")
         
+    async def set_playlist(self, id: str) -> None:
+        json = {'id': id}
+        try:
+            async with self.session.post(f"{server_url}/switch", data=json) as resp:
+                ...
+        except:
+            pass
+
+    @commands.command()
+    async def playlist(self, ctx: commands.Context, name: str=None) -> None:
+        msg = ""
+
+        lists = {
+            'banime': 'PL90pfRlPsZRMKf1wr27WZ0v_fw-Tf4VAk',
+            'demondice': 'PL90pfRlPsZRNehjeYnQCRqGlNWRtnL5Ce',
+            'rats': 'PL90pfRlPsZROTixdxzfxzgEd78LefK3GS'
+        }
+
+        names = {
+            'banime': 'Banime',
+            'demondice': 'DemonDice',
+            'rats': 'Rats'
+        }
+
+        # why do i do this to myself o_o 
+
+        if not name:
+            async with self.session.get(f"{server_url}/playlist") as resp:
+                playlist = await resp.text()
+            msg = f"https://music.youtube.com/playlist?list={playlist}"
+        if id := lists.get(name.lower()):
+            await self.set_playlist(id)
+            msg = f'Switched to the "{names.get(name.lower())}" playlist.'
+        else: return
+
+        await ctx.reply(msg)
+
+    @commands.command()
+    async def play(self, ctx: commands.Context) -> None:
+        async with self.session.get(f"{server_url}/play") as resp:
+            ...
+        await ctx.reply("toggled the playing state!")
+
+    @commands.command()
+    async def raid(self, ctx: commands.Context) -> None:
+        dat = await self.conn.fetch("SELECT value FROM data WHERE name ='raid'")
+        msg = dat[0]['value']
+        await ctx.reply(msg)
+
+    @commands.command(cls=ModCommand)
+    async def setraid(self, ctx: commands.Context, *, msg : str) -> None:
+        if ctx.author.is_mod:
+            await self.conn.execute(f"UPDATE data SET value=$1 WHERE name='raid'", msg)
+            await ctx.reply(f"Set raid message to: {msg}")
+
+    @commands.command(name="7tv")
+    async def _7tv(self, ctx: commands.Context) -> None:
+        site = "https://7tv.app/"
+        set_url = "https://7tv.app/emote-sets/64b386e495725c174ecd782b"
+        await ctx.reply(f"7tv is an emote extension for twitch, you can get it here: {site} and you can find our emote set here: {set_url}")
 
 bot = Bot()
 bot.run()
