@@ -21,6 +21,11 @@ class ModCommand(commands.Command):
         super().__init__(name, func, **attrs)
         self.__skip__ = True
 
+class Playlist:
+    def __init__(self, id: str, name: str) -> None:
+        self.id = id
+        self.name = name
+
 class Bot(commands.Bot):
 
     def __init__(self) -> None:
@@ -158,9 +163,10 @@ class Bot(commands.Bot):
         msg = ""
 
         lists = {
-            'banime': 'PL90pfRlPsZRMKf1wr27WZ0v_fw-Tf4VAk',
-            'demondice': 'PL90pfRlPsZRNehjeYnQCRqGlNWRtnL5Ce',
-            'rats': 'PL90pfRlPsZROTixdxzfxzgEd78LefK3GS'
+            'banime': Playlist('PL90pfRlPsZRMKf1wr27WZ0v_fw-Tf4VAk', 'Banime'),
+            'demondice': Playlist('PL90pfRlPsZRNehjeYnQCRqGlNWRtnL5Ce', 'DemonDice'),
+            'rats': Playlist('PL90pfRlPsZROTixdxzfxzgEd78LefK3GS', 'Rats'),
+            'goodstuff': Playlist('PL90pfRlPsZRN8gGgQaUUP0mPTLlVETEki', 'The Good Stuff')
         }
 
         names = {
@@ -175,9 +181,9 @@ class Bot(commands.Bot):
             async with self.session.get(f"{server_url}/playlist") as resp:
                 playlist = await resp.text()
             msg = f"https://music.youtube.com/playlist?list={playlist}"
-        if id := lists.get(name.lower()):
-            await self.set_playlist(id)
-            msg = f'Switched to the "{names.get(name.lower())}" playlist.'
+        if pl := lists.get(name.lower()):
+            await self.set_playlist(pl.id)
+            msg = f'Switched to the "{pl.name}" playlist.'
         else: return
 
         await ctx.reply(msg)
@@ -205,6 +211,18 @@ class Bot(commands.Bot):
         site = "https://7tv.app/"
         set_url = "https://7tv.app/emote-sets/64b386e495725c174ecd782b"
         await ctx.reply(f"7tv is an emote extension for twitch, you can get it here: {site} and you can find our emote set here: {set_url}")
+
+    @commands.command(name="project")
+    async def project(self, ctx: commands.Context) -> None:
+        dat = await self.conn.fetch("SELECT value FROM data WHERE name=$1", 'project')
+        await ctx.reply(dat[0]['value'])
+
+    @commands.command()
+    async def set_project(self, ctx: commands.Context, *, msg: str) -> None:
+        if ctx.author.is_mod:
+            await self.conn.execute("UPDATE data SET value=$1 WHERE name=$2", msg, 'project')
+
+
 
 bot = Bot()
 bot.run()
